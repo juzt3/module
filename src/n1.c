@@ -253,7 +253,7 @@ long n1_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
         }
 
         // pr_info("n1: get_process: status=%d, name=%s, pid=%d\n",
-                status, status == 0 ? task->comm : req.name, status == 0 ? task->pid : -1);
+        //        status, status == 0 ? task->comm : req.name, status == 0 ? task->pid : -1);
         return status;
     }
     case N1_GET_REGION: {
@@ -303,7 +303,7 @@ long n1_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
             status = -EFAULT;
 
         // pr_info("n1: get_region: status=%d, name=%s, start=0x%px end=0x%px\n",
-                status, req.name, (void *)req.start, (void *)req.end);
+        //        status, req.name, (void *)req.start, (void *)req.end);
         return status;
     }
     case N1_WRITE: {
