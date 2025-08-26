@@ -111,7 +111,7 @@ int n1_input_connect_callback(struct input_handler *handler, struct input_dev *d
     if (status)
         goto err_unreg;
 
-    pr_info("n1: input_connect_callback: dev=%s, phys=%s\n", dev->name, dev->phys ? dev->phys : "(none)");
+    // pr_info("n1: input_connect_callback: dev=%s, phys=%s\n", dev->name, dev->phys ? dev->phys : "(none)");
     return 0;
 
 err_unreg:
@@ -125,8 +125,8 @@ err_free:
 /* Desconexión input */
 void n1_input_disconnect_callback(struct input_handle *handle)
 {
-    pr_info("n1: input_disconnect_callback: dev=%s, phys=%s\n",
-        handle->dev->name, handle->dev->phys ? handle->dev->phys : "(none)");
+    // pr_info("n1: input_disconnect_callback: dev=%s, phys=%s\n",
+    //    handle->dev->name, handle->dev->phys ? handle->dev->phys : "(none)");
     input_close_device(handle);
     input_unregister_handle(handle);
     kfree(handle);
@@ -239,7 +239,7 @@ long n1_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
         if (copy_from_user(&req, (void __user *)arg, sizeof(req)) != 0) {
             status = -EFAULT;
-            pr_info("n1: get_process: copy_from_user failed\n");
+            // pr_info("n1: get_process: copy_from_user failed\n");
             return status;
         }
 
@@ -252,7 +252,7 @@ long n1_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
                 status = -EFAULT;
         }
 
-        pr_info("n1: get_process: status=%d, name=%s, pid=%d\n",
+        // pr_info("n1: get_process: status=%d, name=%s, pid=%d\n",
                 status, status == 0 ? task->comm : req.name, status == 0 ? task->pid : -1);
         return status;
     }
@@ -302,7 +302,7 @@ long n1_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
         if (copy_to_user((void __user *)arg, &req, sizeof(req)) != 0)
             status = -EFAULT;
 
-        pr_info("n1: get_region: status=%d, name=%s, start=0x%px end=0x%px\n",
+        // pr_info("n1: get_region: status=%d, name=%s, start=0x%px end=0x%px\n",
                 status, req.name, (void *)req.start, (void *)req.end);
         return status;
     }
@@ -315,8 +315,8 @@ long n1_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
         if (copy_from_user(&req, (void __user *)arg, sizeof(req)) != 0)
             return -EFAULT;
 
-        pr_info("n1: write_memory: address=0x%px, pid=%d, len=%lu\n",
-                (void *)req.address, req.pid, (unsigned long)req.len);
+        // pr_info("n1: write_memory: address=0x%px, pid=%d, len=%lu\n",
+        //        (void *)req.address, req.pid, (unsigned long)req.len);
 
         temp = vmalloc(req.len);
         if (!temp)
@@ -335,8 +335,8 @@ w_out:
         if (temp)
             vfree(temp);
 
-        pr_info("n1: write_memory: status=%d, written=%ld/%lu\n",
-                status, (long)written_bytes, (unsigned long)req.len);
+        // pr_info("n1: write_memory: status=%d, written=%ld/%lu\n",
+        //        status, (long)written_bytes, (unsigned long)req.len);
         return status;
     }
     case N1_READ: {
@@ -348,8 +348,8 @@ w_out:
         if (copy_from_user(&req, (void __user *)arg, sizeof(req)) != 0)
             return -EFAULT;
 
-        pr_info("n1: read_memory: address=0x%px, pid=%d, len=%lu\n",
-                (void *)req.address, req.pid, (unsigned long)req.len);
+        // pr_info("n1: read_memory: address=0x%px, pid=%d, len=%lu\n",
+        //        (void *)req.address, req.pid, (unsigned long)req.len);
 
         temp = vmalloc(req.len);
         if (!temp)
@@ -375,8 +375,8 @@ r_out:
         if (temp)
             vfree(temp);
 
-        pr_info("n1: read_memory: status=%d, read=%ld/%lu\n",
-                status, (long)read_bytes, (unsigned long)req.len);
+        // pr_info("n1: read_memory: status=%d, read=%ld/%lu\n",
+        //        status, (long)read_bytes, (unsigned long)req.len);
         return status;
     }
     case N1_GENERATE_INPUT: {
@@ -391,8 +391,8 @@ r_out:
         else
             generate_input(n1_mouse, req.type, req.code, req.value);
 
-        pr_info("n1: generate_input: status=%d, code=%d, value=%d, type=%d, device=%d\n",
-                status, req.code, req.value, req.type, req.device_type);
+        // pr_info("n1: generate_input: status=%d, code=%d, value=%d, type=%d, device=%d\n",
+        //        status, req.code, req.value, req.type, req.device_type);
         return status;
     }
     case N1_GET_KEY_STATE: {
@@ -406,11 +406,11 @@ r_out:
         if (copy_to_user((void __user *)arg, &req, sizeof(req)) != 0)
             return -EFAULT;
 
-        pr_info("n1: get_key_state: code=%d, state=%d\n", req.code, req.state);
+        // pr_info("n1: get_key_state: code=%d, state=%d\n", req.code, req.state);
         return 0;
     }
     default:
-        pr_info("n1: unknown ioctl cmd=%u\n", cmd);
+        // pr_info("n1: unknown ioctl cmd=%u\n", cmd);
         return -ENOTTY;
     }
 }
@@ -418,22 +418,22 @@ r_out:
 /* fops básicos */
 ssize_t n1_read(struct file *file, char __user *buf, size_t len, loff_t *offp)
 {
-    pr_info("n1: read\n");
+    // pr_info("n1: read\n");
     return 0;
 }
 ssize_t n1_write(struct file *file, const char __user *buf, size_t len, loff_t *offp)
 {
-    pr_info("n1: write\n");
+    // pr_info("n1: write\n");
     return len;
 }
 int n1_open(struct inode *inode, struct file *file)
 {
-    pr_info("n1: open\n");
+    // pr_info("n1: open\n");
     return 0;
 }
 int n1_release(struct inode *inode, struct file *file)
 {
-    pr_info("n1: release\n");
+    // pr_info("n1: release\n");
     return 0;
 }
 
@@ -478,7 +478,7 @@ static int n1_register_keyboard_input_device(void)
         return status;
     }
 
-    pr_info("n1: keyboard initialized: name=%s, phys=%s\n", n1_keyboard->name, n1_keyboard->phys);
+    // pr_info("n1: keyboard initialized: name=%s, phys=%s\n", n1_keyboard->name, n1_keyboard->phys);
     return 0;
 }
 
@@ -514,7 +514,7 @@ static int n1_register_mouse_input_device(void)
         return status;
     }
 
-    pr_info("n1: mouse initialized: name=%s, phys=%s\n", n1_mouse->name, n1_mouse->phys);
+    // pr_info("n1: mouse initialized: name=%s, phys=%s\n", n1_mouse->name, n1_mouse->phys);
     return 0;
 }
 
@@ -522,39 +522,39 @@ static int n1_register_mouse_input_device(void)
 static int __init n1_init(void)
 {
     if (alloc_chrdev_region(&dev, 0, 1, "n1") < 0) {
-        pr_err("n1: failed to allocate major number\n");
+        // pr_err("n1: failed to allocate major number\n");
         return -1;
     }
 
     cdev_init(&n1_cdev, &fops);
     if (cdev_add(&n1_cdev, dev, 1) < 0) {
-        pr_err("n1: cdev_add failed\n");
+        // pr_err("n1: cdev_add failed\n");
         goto class_fail;
     }
 
     dev_class = class_create(THIS_MODULE, "n1");
     if (IS_ERR(dev_class)) {
-        pr_err("n1: class_create failed\n");
+        // pr_err("n1: class_create failed\n");
         goto class_fail;
     }
 
     if (IS_ERR(device_create(dev_class, NULL, dev, NULL, "n1"))) {
-        pr_err("n1: device_create failed\n");
+        // pr_err("n1: device_create failed\n");
         goto device_fail;
     }
 
     if (input_register_handler(&n1_handler)) {
-        pr_err("n1: input_register_handler failed\n");
+        // pr_err("n1: input_register_handler failed\n");
         goto device_fail;
     }
 
     if (n1_register_keyboard_input_device() != 0) {
-        pr_err("n1: keyboard init failed\n");
+        // pr_err("n1: keyboard init failed\n");
         goto handler_fail;
     }
 
     if (n1_register_mouse_input_device() != 0) {
-        pr_err("n1: mouse init failed\n");
+        // pr_err("n1: mouse init failed\n");
         goto mouse_fail;
     }
 
