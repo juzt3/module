@@ -132,14 +132,15 @@ void n1_input_disconnect_callback(struct input_handle *handle)
     kfree(handle);
 }
 
-/* Leer/escribir memoria de usuario de otro proceso */
+/* Leer/escribir memoria de usuario de otro proceso - ACTUALIZADO para kernel 6.14 */
 static ssize_t rw_virtual_memory(uintptr_t address, pid_t pid, size_t len, void *buf, int write)
 {
     struct task_struct *task;
     struct mm_struct *mm;
     struct vm_area_struct *vma = NULL;
     void *old_buf = buf;
-    unsigned int flags = write ? FOLL_WRITE : 0;
+    unsigned int gup_flags = write ? FOLL_WRITE : 0;
+    VMA_ITERATOR(vmi, NULL, address);
 
     task = pid_task(find_vpid(pid), PIDTYPE_PID);
     if (!task)
@@ -149,29 +150,25 @@ static ssize_t rw_virtual_memory(uintptr_t address, pid_t pid, size_t len, void 
     if (!mm)
         return -ESRCH;
 
-    if (down_read_killable(&mm->mmap_lock)) {
-        mmput(mm);
-        return -EFAULT;
-    }
+    /* Actualizado: usar vma_iterator en lugar de mmap_lock */
+    vma_iter_init(&vmi, mm, address);
+    mmap_read_lock(mm);
 
     while (len) {
         int bytes, ret, offset;
         void *maddr;
         struct page *page = NULL;
 
-        /* get_user_pages_remote firma (5.15):
-           long get_user_pages_remote(struct mm_struct *mm, unsigned long start, unsigned long nr_pages,
-                                      unsigned int gup_flags, struct page **pages,
-                                      struct vm_area_struct **vmas, int *locked); */
-        ret = get_user_pages_remote(mm, address, 1, flags, &page, NULL, NULL);
+        /* get_user_pages_remote - signature actualizada para 6.14 */
+        ret = get_user_pages_remote(mm, address, 1, gup_flags, &page, NULL);
         if (ret <= 0) {
             /* si falla, intenta vía vm_ops->access */
-            vma = find_vma(mm, address);
+            vma = vma_lookup(mm, address);
             if (!vma)
                 break;
 
             if (vma->vm_ops && vma->vm_ops->access) {
-                ret = vma->vm_ops->access(vma, address, buf, len, flags);
+                ret = vma->vm_ops->access(vma, address, buf, len, gup_flags);
             }
             if (ret <= 0)
                 break;
@@ -183,22 +180,26 @@ static ssize_t rw_virtual_memory(uintptr_t address, pid_t pid, size_t len, void 
             if (bytes > PAGE_SIZE - offset)
                 bytes = PAGE_SIZE - offset;
 
-#if defined(CONFIG_HIGHMEM)
-            maddr = kmap(page);
-#else
+            /* Kernel 6.14 ya no usa kmap/kunmap para páginas normales */
             maddr = page_address(page);
-#endif
-            if (write) {
-                /* mantener coherencia de caché */
-                copy_to_user_page(vma, page, address, maddr + offset, buf, bytes);
-                set_page_dirty_lock(page);
+            if (!maddr) {
+                /* Solo usar kmap_local_page si page_address falla */
+                maddr = kmap_local_page(page);
+                if (write) {
+                    copy_to_user_page(vma, page, address, maddr + offset, buf, bytes);
+                    set_page_dirty_lock(page);
+                } else {
+                    copy_from_user_page(vma, page, address, buf, maddr + offset, bytes);
+                }
+                kunmap_local(maddr);
             } else {
-                copy_from_user_page(vma, page, address, buf, maddr + offset, bytes);
+                if (write) {
+                    copy_to_user_page(vma, page, address, maddr + offset, buf, bytes);
+                    set_page_dirty_lock(page);
+                } else {
+                    copy_from_user_page(vma, page, address, buf, maddr + offset, bytes);
+                }
             }
-
-#if defined(CONFIG_HIGHMEM)
-            kunmap(page);
-#endif
             put_page(page);
         }
 
@@ -207,7 +208,7 @@ static ssize_t rw_virtual_memory(uintptr_t address, pid_t pid, size_t len, void 
         address += bytes;
     }
 
-    up_read(&mm->mmap_lock);
+    mmap_read_unlock(mm);
     mmput(mm);
 
     return (ssize_t)(buf - old_buf);
@@ -261,6 +262,7 @@ long n1_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
         struct task_struct *task;
         struct mm_struct *mm;
         struct vm_area_struct *vma;
+        VMA_ITERATOR(vmi, NULL, 0);
         int status = 0;
 
         if (copy_from_user(&req, (void __user *)arg, sizeof(req)) != 0)
@@ -274,15 +276,14 @@ long n1_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
         if (!mm)
             return -EINVAL;
 
-        if (down_read_killable(&mm->mmap_lock)) {
-            mmput(mm);
-            return -EFAULT;
-        }
+        /* Actualizado: usar VMA iterator en lugar de recorrer mm->mmap */
+        vma_iter_init(&vmi, mm, 0);
+        mmap_read_lock(mm);
 
         req.start = 0;
         req.end = 0;
 
-        for (vma = mm->mmap; vma; vma = vma->vm_next) {
+        for_each_vma(vmi, vma) {
             if (!vma->vm_file)
                 continue;
             if ((vma->vm_flags & VM_EXEC) &&
@@ -293,7 +294,7 @@ long n1_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
             }
         }
 
-        up_read(&mm->mmap_lock);
+        mmap_read_unlock(mm);
         mmput(mm);
 
         if (req.start == 0 && req.end == 0)
@@ -518,7 +519,7 @@ static int n1_register_mouse_input_device(void)
     return 0;
 }
 
-/* init */
+/* init - ACTUALIZADO para kernel 6.14 */
 static int __init n1_init(void)
 {
     if (alloc_chrdev_region(&dev, 0, 1, "n1") < 0) {
@@ -532,7 +533,8 @@ static int __init n1_init(void)
         goto class_fail;
     }
 
-    dev_class = class_create(THIS_MODULE, "n1");
+    /* Actualizado: class_create sin THIS_MODULE */
+    dev_class = class_create("n1");
     if (IS_ERR(dev_class)) {
         // pr_err("n1: class_create failed\n");
         goto class_fail;
