@@ -274,7 +274,7 @@ long n1_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
             return -EINVAL;
 
         /* Usar ma_state en lugar de VMA_ITERATOR para kernel 6.14 */
-        ma_init(&mas, &mm->mm_mt, 0);
+        mas_init(&mas, &mm->mm_mt, 0);
         mmap_read_lock(mm);
 
         req.start = 0;
