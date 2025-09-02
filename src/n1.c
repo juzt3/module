@@ -132,7 +132,7 @@ void n1_input_disconnect_callback(struct input_handle *handle)
     kfree(handle);
 }
 
-/* Leer/escribir memoria de usuario de otro proceso - ACTUALIZADO para kernel 6.14 */
+/* Leer/escribir memoria de usuario de otro proceso - CORREGIDO para kernel 6.14 */
 static ssize_t rw_virtual_memory(uintptr_t address, pid_t pid, size_t len, void *buf, int write)
 {
     struct task_struct *task;
@@ -140,7 +140,6 @@ static ssize_t rw_virtual_memory(uintptr_t address, pid_t pid, size_t len, void 
     struct vm_area_struct *vma = NULL;
     void *old_buf = buf;
     unsigned int gup_flags = write ? FOLL_WRITE : 0;
-    VMA_ITERATOR(vmi, NULL, address);
 
     task = pid_task(find_vpid(pid), PIDTYPE_PID);
     if (!task)
@@ -150,8 +149,6 @@ static ssize_t rw_virtual_memory(uintptr_t address, pid_t pid, size_t len, void 
     if (!mm)
         return -ESRCH;
 
-    /* Actualizado: usar vma_iterator en lugar de mmap_lock */
-    vma_iter_init(&vmi, mm, address);
     mmap_read_lock(mm);
 
     while (len) {
@@ -180,10 +177,10 @@ static ssize_t rw_virtual_memory(uintptr_t address, pid_t pid, size_t len, void 
             if (bytes > PAGE_SIZE - offset)
                 bytes = PAGE_SIZE - offset;
 
-            /* Kernel 6.14 ya no usa kmap/kunmap para páginas normales */
+            /* Kernel 6.14 - manejo simplificado de páginas */
             maddr = page_address(page);
             if (!maddr) {
-                /* Solo usar kmap_local_page si page_address falla */
+                /* Solo usar kmap_local_page si page_address falla (páginas high memory) */
                 maddr = kmap_local_page(page);
                 if (write) {
                     copy_to_user_page(vma, page, address, maddr + offset, buf, bytes);
@@ -262,7 +259,7 @@ long n1_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
         struct task_struct *task;
         struct mm_struct *mm;
         struct vm_area_struct *vma;
-        VMA_ITERATOR(vmi, NULL, 0);
+        struct ma_state mas;
         int status = 0;
 
         if (copy_from_user(&req, (void __user *)arg, sizeof(req)) != 0)
@@ -276,14 +273,15 @@ long n1_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
         if (!mm)
             return -EINVAL;
 
-        /* Actualizado: usar VMA iterator en lugar de recorrer mm->mmap */
-        vma_iter_init(&vmi, mm, 0);
+        /* Usar ma_state en lugar de VMA_ITERATOR para kernel 6.14 */
+        ma_init(&mas, &mm->mm_mt, 0);
         mmap_read_lock(mm);
 
         req.start = 0;
         req.end = 0;
 
-        for_each_vma(vmi, vma) {
+        /* Recorrer VMAs usando maple tree state */
+        mas_for_each(&mas, vma, ULONG_MAX) {
             if (!vma->vm_file)
                 continue;
             if ((vma->vm_flags & VM_EXEC) &&
@@ -519,7 +517,7 @@ static int n1_register_mouse_input_device(void)
     return 0;
 }
 
-/* init - ACTUALIZADO para kernel 6.14 */
+/* init - CORREGIDO para kernel 6.14 */
 static int __init n1_init(void)
 {
     if (alloc_chrdev_region(&dev, 0, 1, "n1") < 0) {
@@ -533,7 +531,7 @@ static int __init n1_init(void)
         goto class_fail;
     }
 
-    /* Actualizado: class_create sin THIS_MODULE */
+    /* CORREGIDO: class_create sin THIS_MODULE para kernel 6.14 */
     dev_class = class_create("n1");
     if (IS_ERR(dev_class)) {
         // pr_err("n1: class_create failed\n");
